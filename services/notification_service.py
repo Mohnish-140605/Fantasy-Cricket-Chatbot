@@ -27,12 +27,18 @@ class NotificationService:
         else:
             print(f"User {user_id} is not subscribed, notification not sent.")
 
+    def send_live_update_once(self, match_id: str):
+        """Send a single live update to all subscribers (for testing)."""
+        match_status = "Live match update: Status changed"
+        for subscriber in list(self.subscribers):
+            self.send_notification(subscriber, match_status)
+
     def start_live_updates(self, match_id: str, interval: int = 60):
         """Start live updates by sending notifications at specified intervals."""
         def live_update():
             while True:
                 match_status = "Live match update: Status changed"  # Placeholder, integrate actual status
-                for subscriber in self.subscribers:
+                for subscriber in list(self.subscribers):
                     self.send_notification(subscriber, match_status)
                 time.sleep(interval)
 
