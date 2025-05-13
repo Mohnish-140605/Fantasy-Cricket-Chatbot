@@ -24,7 +24,8 @@ from core.data.player_data import fetch_players
 notification_service = NotificationService()
 
 # Initialize external API client and other services
-api_client = CricbuzzAPIClient(api_key="fd207dab-6b6c-40dc-8782-de1b1b173371")
+api_key = os.getenv("CRICAPI_KEY")
+api_client = CricbuzzAPIClient(api_key=api_key)
 
 # Main Streamlit UI
 st.title("Fantasy Cricket Assistant")
@@ -412,6 +413,7 @@ def get_india_squad_from_live_matches(api_key):
     return None
 
 api_key = os.getenv("CRICAPI_KEY")
+api_client = CricbuzzAPIClient(api_key=api_key)
 indian_squad = get_india_squad_from_live_matches(api_key)
 if not indian_squad:
     st.warning("Could not fetch the current India squad from the API. Using a default squad.")
