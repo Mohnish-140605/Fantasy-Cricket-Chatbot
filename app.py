@@ -10,10 +10,15 @@ from services.notification_service import NotificationService
 from core.data.api_client import CricbuzzAPIClient
 from core.analytics.player_analyzer import PlayerAnalyzer
 import time
+import random
 # from cricbuzz import Cricbuzz   # <-- Remove or comment out this line
 import requests
 import os
 from dotenv import load_dotenv
+from core.fantasy.team_manager import init_db, save_team, load_team
+
+from core.data.player_data import fetch_players
+
 
 # Initialize the NotificationService instance
 notification_service = NotificationService()
@@ -378,4 +383,228 @@ ax.set_ylabel('Count')
 ax.set_title('Player Comparison')
 ax.legend()
 st.pyplot(fig)
+
+# --- Fantasy Team Builder Section ---
+
+st.header("Fantasy Team Builder (Enhanced UI)")
+
+MAX_TEAM_SIZE = 11
+
+# Example: Use the same squad logic as before
+def get_india_squad_from_live_matches(api_key):
+    url = f"https://api.cricapi.com/v1/currentMatches?apikey={api_key}&offset=0"
+    response = requests.get(url)
+    data = response.json()
+    if data.get("status") != "success":
+        return None
+    for match in data.get("data", []):
+        teams = match.get("teams", [])
+        if "India" in teams:
+            team_info = match.get("teamInfo", [])
+            for team in team_info:
+                if team.get("name") == "India":
+                    players = team.get("players", [])
+                    if players:
+                        if isinstance(players[0], dict):
+                            return players
+                        else:
+                            return [{"name": p, "role": "Unknown"} for p in players]
+    return None
+
+api_key = os.getenv("CRICAPI_KEY")
+indian_squad = get_india_squad_from_live_matches(api_key)
+if not indian_squad:
+    st.warning("Could not fetch the current India squad from the API. Using a default squad.")
+    indian_squad = [
+        {"name": "Rohit Sharma", "role": "Batsman"},
+        {"name": "Shubman Gill", "role": "Batsman"},
+        {"name": "Virat Kohli", "role": "Batsman"},
+        {"name": "Shreyas Iyer", "role": "Batsman"},
+        {"name": "KL Rahul", "role": "Wicketkeeper"},
+        {"name": "Hardik Pandya", "role": "Allrounder"},
+        {"name": "Ravindra Jadeja", "role": "Allrounder"},
+        {"name": "Kuldeep Yadav", "role": "Bowler"},
+        {"name": "Jasprit Bumrah", "role": "Bowler"},
+        {"name": "Mohammed Siraj", "role": "Bowler"},
+        {"name": "Mohammed Shami", "role": "Bowler"},
+        {"name": "Ishan Kishan", "role": "Wicketkeeper"},
+        {"name": "Suryakumar Yadav", "role": "Batsman"},
+        {"name": "Axar Patel", "role": "Allrounder"},
+        {"name": "Shardul Thakur", "role": "Bowler"},
+    ]
+
+# Initialize session state for fantasy team
+if "fantasy_team" not in st.session_state:
+    st.session_state.fantasy_team = []
+if "captain" not in st.session_state:
+    st.session_state.captain = None
+if "vice_captain" not in st.session_state:
+    st.session_state.vice_captain = None
+
+# --- Enhanced UI: Player Cards ---
+role_colors = {
+    "Batsman": "#1f77b4",
+    "Bowler": "#ff7f0e",
+    "Allrounder": "#2ca02c",
+    "Wicketkeeper": "#d62728",
+    "Unknown": "#888"
+}
+
+st.markdown("""
+    <style>
+    .player-card-ui {
+        background: #23272f;
+        border-radius: 12px;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.18);
+        padding: 16px 12px 12px 12px;
+        margin: 8px 8px 8px 0;
+        display: inline-block;
+        min-width: 170px;
+        max-width: 170px;
+        vertical-align: top;
+        text-align: center;
+        position: relative;
+    }
+    .role-badge {
+        display: inline-block;
+        padding: 2px 10px;
+        border-radius: 8px;
+        font-size: 0.9em;
+        font-weight: bold;
+        margin-bottom: 6px;
+        color: #fff;
+    }
+    .remove-btn {
+        position: absolute;
+        top: 6px;
+        right: 10px;
+        color: #e63946;
+        font-weight: bold;
+        cursor: pointer;
+        font-size: 1.1em;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+st.markdown("#### Select Players")
+st.progress(len(st.session_state.fantasy_team) / MAX_TEAM_SIZE)
+
+# Show available players as cards with "Add" buttons
+cols = st.columns(4)
+available_players = [p for p in indian_squad if p not in st.session_state.fantasy_team]
+for idx, player in enumerate(available_players):
+    with cols[idx % 4]:
+        st.markdown(
+            f"""
+            <div class="player-card-ui">
+                <div class="role-badge" style="background:{role_colors.get(player['role'], '#888')};">{player['role']}</div><br>
+                <b>{player['name']}</b><br>
+            </div>
+            """, unsafe_allow_html=True
+        )
+        if st.button(f"Add {player['name']}", key=f"add_{player['name']}"):
+            if len(st.session_state.fantasy_team) < MAX_TEAM_SIZE:
+                st.session_state.fantasy_team.append(player)
+            else:
+                st.warning("You already have 11 players in your team.")
+
+# Show selected team as cards with remove buttons
+st.markdown("#### Your Selected Team")
+if st.session_state.fantasy_team:
+    team_cols = st.columns(4)
+    for idx, player in enumerate(st.session_state.fantasy_team):
+        with team_cols[idx % 4]:
+            st.markdown(
+                f"""
+                <div class="player-card-ui">
+                    <div class="role-badge" style="background:{role_colors.get(player['role'], '#888')};">{player['role']}</div><br>
+                    <b>{player['name']}</b>
+                    <span class="remove-btn" title="Remove" onclick="window.location.reload();">✖</span>
+                </div>
+                """, unsafe_allow_html=True
+            )
+            if st.button(f"Remove {player['name']}", key=f"remove_{player['name']}"):
+                st.session_state.fantasy_team = [p for p in st.session_state.fantasy_team if p != player]
+else:
+    st.info("No players selected yet.")
+
+# Captain and Vice-Captain selection (only when team is complete)
+if len(st.session_state.fantasy_team) == MAX_TEAM_SIZE:
+    st.success("Team complete! Now select your Captain and Vice-Captain.")
+    team_names = [p["name"] for p in st.session_state.fantasy_team]
+    st.session_state.captain = st.selectbox("Captain", team_names, key="captain_select_ui")
+    st.session_state.vice_captain = st.selectbox(
+        "Vice-Captain",
+        [n for n in team_names if n != st.session_state.captain],
+        key="vice_captain_select_ui"
+    )
+    if st.button("Confirm Team Selection"):
+        st.success(f"Team confirmed! Captain: {st.session_state.captain}, Vice-Captain: {st.session_state.vice_captain}")
+
+    # Show team summary in a nice table
+    st.markdown("### Your Fantasy XI")
+    st.table([
+        {
+            "Player": p["name"],
+            "Role": p.get("role", "Unknown"),
+            "Captain": "✅" if p["name"] == st.session_state.captain else "",
+            "Vice-Captain": "✅" if p["name"] == st.session_state.vice_captain else ""
+        }
+        for p in st.session_state.fantasy_team
+    ])
+else:
+    st.markdown("### Your Fantasy XI")
+    st.table([
+        {
+            "Player": p["name"],
+            "Role": p.get("role", "Unknown")
+        }
+        for p in st.session_state.fantasy_team
+    ])
+
+# Add these lines to define the constraints
+MAX_TEAM_SIZE = 11
+MAX_FROM_ONE_TEAM = 4
+
+# Mock player pool (replace with real data from your API)
+player_pool = [
+    {"name": "Virat Kohli", "team": "India", "role": "Batsman"},
+    {"name": "Rohit Sharma", "team": "India", "role": "Batsman"},
+    {"name": "Jasprit Bumrah", "team": "India", "role": "Bowler"},
+    {"name": "Jos Buttler", "team": "England", "role": "Batsman"},
+    {"name": "Ben Stokes", "team": "England", "role": "Allrounder"},
+    {"name": "Joe Root", "team": "England", "role": "Batsman"},
+    {"name": "Pat Cummins", "team": "Australia", "role": "Bowler"},
+    {"name": "David Warner", "team": "Australia", "role": "Batsman"},
+    {"name": "Kane Williamson", "team": "New Zealand", "role": "Batsman"},
+    {"name": "Trent Boult", "team": "New Zealand", "role": "Bowler"},
+    {"name": "Shakib Al Hasan", "team": "Bangladesh", "role": "Allrounder"},
+    {"name": "Babar Azam", "team": "Pakistan", "role": "Batsman"},
+    {"name": "Shaheen Afridi", "team": "Pakistan", "role": "Bowler"},
+    {"name": "Quinton de Kock", "team": "South Africa", "role": "Wicketkeeper"},
+    {"name": "Kagiso Rabada", "team": "South Africa", "role": "Bowler"},
+]
+
+# Initialize DB
+init_db()
+
+# Load environment variables from .env file
+load_dotenv()
+api_key = os.getenv("CRICAPI_KEY")
+
+# Fetch real player data
+player_pool = fetch_players(api_key)
+
+# Load user's saved team
+team, captain, vice_captain = load_team(user_id)
+if "fantasy_team" not in st.session_state:
+    st.session_state.fantasy_team = team
+if "captain" not in st.session_state:
+    st.session_state.captain = captain
+if "vice_captain" not in st.session_state:
+    st.session_state.vice_captain = vice_captain
+
+# Helper to count players from a team
+def count_from_team(team):
+    return sum(1 for p in st.session_state.fantasy_team if p["team"] == team)
 
