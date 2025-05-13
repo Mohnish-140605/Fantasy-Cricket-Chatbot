@@ -610,3 +610,131 @@ if "vice_captain" not in st.session_state:
 def count_from_team(team):
     return sum(1 for p in st.session_state.fantasy_team if p["team"] == team)
 
+# --- Team Analyzer & Suggestions Section ---
+if st.session_state.fantasy_team:
+    st.header("🧠 Team Analyzer & Suggestions")
+
+    # Analyze team composition
+    roles = [p.get("role", "Unknown") for p in st.session_state.fantasy_team]
+    from collections import Counter
+    import plotly.graph_objects as go  # <-- Add this import
+
+    role_counts = Counter(roles)
+    num_batsmen = role_counts.get("Batsman", 0)
+    num_bowlers = role_counts.get("Bowler", 0)
+    num_allrounders = role_counts.get("Allrounder", 0)
+    num_wicketkeepers = role_counts.get("Wicketkeeper", 0)
+
+    # Interactive Plotly Pie Chart for team composition
+    labels = []
+    values = []
+    colors = []
+    if num_batsmen:
+        labels.append("Batsmen"); values.append(num_batsmen); colors.append("#1f77b4")
+    if num_bowlers:
+        labels.append("Bowlers"); values.append(num_bowlers); colors.append("#ff7f0e")
+    if num_allrounders:
+        labels.append("Allrounders"); values.append(num_allrounders); colors.append("#2ca02c")
+    if num_wicketkeepers:
+        labels.append("Wicketkeepers"); values.append(num_wicketkeepers); colors.append("#d62728")
+
+    if values:
+        fig = go.Figure(
+            data=[go.Pie(
+                labels=labels,
+                values=values,
+                marker=dict(colors=colors),
+                hole=0.4,
+                hoverinfo="label+percent+value",
+                textinfo="label+percent",
+                pull=[0.08]*len(labels),  # Slightly pull out all slices for effect
+            )]
+        )
+        fig.update_layout(
+            title="Team Composition",
+            showlegend=True,
+            margin=dict(t=40, b=0, l=0, r=0),
+            paper_bgcolor="#181c24",
+            font=dict(color="#fff"),
+            legend=dict(orientation="h", y=-0.1)
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+    # Dynamic feedback and suggestions
+    suggestions = []
+    if num_batsmen < 3:
+        suggestions.append("⚠️ Consider adding more Batsmen for a stronger batting lineup.")
+    if num_bowlers < 3:
+        suggestions.append("⚠️ Add more Bowlers to ensure bowling depth.")
+    if num_allrounders < 1:
+        suggestions.append("⚠️ Having at least one Allrounder adds balance to your team.")
+    if num_wicketkeepers < 1:
+        suggestions.append("⚠️ Pick at least one Wicketkeeper for a complete team.")
+    if num_batsmen >= 4 and num_bowlers >= 4 and num_allrounders >= 2 and num_wicketkeepers >= 1:
+        suggestions.append("✅ Your team is well-balanced!")
+    # Example: Suggest based on recent form (mocked)
+    for p in st.session_state.fantasy_team:
+        if p.get("name", "").lower() == "virat kohli":
+            suggestions.append("🔥 Virat Kohli is in great form! Good pick.")
+        if p.get("name", "").lower() == "hardik pandya":
+            suggestions.append("⚠️ Hardik Pandya has a minor injury concern. Monitor before matchday.")
+
+    st.markdown("#### Team Insights")
+    st.markdown(
+        f"""
+        <div style="background:#181c24;padding:18px;border-radius:12px;margin-bottom:12px;">
+            <b>Composition:</b> {num_batsmen} Batsmen, {num_bowlers} Bowlers, {num_allrounders} Allrounders, {num_wicketkeepers} Wicketkeepers
+        </div>
+        """, unsafe_allow_html=True
+    )
+
+    st.markdown("#### Suggestions")
+    for s in suggestions:
+        st.markdown(f"- {s}")
+
+# Add these lines to define the constraints
+MAX_TEAM_SIZE = 11
+MAX_FROM_ONE_TEAM = 4
+
+# Mock player pool (replace with real data from your API)
+player_pool = [
+    {"name": "Virat Kohli", "team": "India", "role": "Batsman"},
+    {"name": "Rohit Sharma", "team": "India", "role": "Batsman"},
+    {"name": "Jasprit Bumrah", "team": "India", "role": "Bowler"},
+    {"name": "Jos Buttler", "team": "England", "role": "Batsman"},
+    {"name": "Ben Stokes", "team": "England", "role": "Allrounder"},
+    {"name": "Joe Root", "team": "England", "role": "Batsman"},
+    {"name": "Pat Cummins", "team": "Australia", "role": "Bowler"},
+    {"name": "David Warner", "team": "Australia", "role": "Batsman"},
+    {"name": "Kane Williamson", "team": "New Zealand", "role": "Batsman"},
+    {"name": "Trent Boult", "team": "New Zealand", "role": "Bowler"},
+    {"name": "Shakib Al Hasan", "team": "Bangladesh", "role": "Allrounder"},
+    {"name": "Babar Azam", "team": "Pakistan", "role": "Batsman"},
+    {"name": "Shaheen Afridi", "team": "Pakistan", "role": "Bowler"},
+    {"name": "Quinton de Kock", "team": "South Africa", "role": "Wicketkeeper"},
+    {"name": "Kagiso Rabada", "team": "South Africa", "role": "Bowler"},
+]
+
+# Initialize DB
+init_db()
+
+# Load environment variables from .env file
+load_dotenv()
+api_key = os.getenv("CRICAPI_KEY")
+
+# Fetch real player data
+player_pool = fetch_players(api_key)
+
+# Load user's saved team
+team, captain, vice_captain = load_team(user_id)
+if "fantasy_team" not in st.session_state:
+    st.session_state.fantasy_team = team
+if "captain" not in st.session_state:
+    st.session_state.captain = captain
+if "vice_captain" not in st.session_state:
+    st.session_state.vice_captain = vice_captain
+
+# Helper to count players from a team
+def count_from_team(team):
+    return sum(1 for p in st.session_state.fantasy_team if p["team"] == team)
+
