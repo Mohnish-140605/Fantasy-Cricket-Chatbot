@@ -111,4 +111,5 @@ This project is licensed under the MIT License.
 ## 📬 Contact
 
 Created by Mohnish G Naidu — mohnishg.bsc23@rvu.edu.in
+supported by Jaineesh Patel
 For collaboration or feedback, feel free to reach out!
